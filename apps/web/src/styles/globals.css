@@ -624,6 +624,74 @@ html[data-edgeever-extension-theme] kbd {
   background: var(--workspace-editor);
 }
 
+.edgeever-editor-metadata-icon {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  [data-metadata-density] .edgeever-editor-notebook-select,
+  [data-metadata-density] .edgeever-editor-tag-picker,
+  [data-metadata-density] .edgeever-editor-tag-trigger {
+    flex: 0 0 auto;
+    width: max-content;
+    max-width: none;
+  }
+
+  /* Priority: title, then notebook, then tags. Tags compact first. */
+  [data-metadata-density="tags"], [data-metadata-density="compact"] {
+    .edgeever-editor-tag-picker {
+      /* Keep the Smart Tag action beside the compact tag selector. */
+      width: max-content;
+      min-width: 4rem;
+      flex: 0 0 auto;
+    }
+
+    .edgeever-editor-tag-trigger {
+      width: 2rem;
+      min-width: 2rem;
+      justify-content: center;
+      gap: 0;
+      padding-inline: 0;
+    }
+
+    .edgeever-editor-tag-picker .edgeever-editor-metadata-icon {
+      display: block;
+    }
+
+    .edgeever-editor-tag-content,
+    .edgeever-editor-tag-chevron {
+      display: none;
+    }
+  }
+
+  /* On very narrow headers, compact the notebook only after the tags. */
+  [data-metadata-density="compact"] {
+    .edgeever-editor-notebook-select {
+      width: 2rem;
+      min-width: 2rem;
+      flex: 0 0 2rem;
+    }
+
+    .edgeever-editor-notebook-trigger {
+      width: 2rem;
+      min-width: 2rem;
+      justify-content: center;
+      gap: 0;
+      padding-inline: 0;
+    }
+
+    .edgeever-editor-notebook-select .edgeever-editor-metadata-icon {
+      display: block;
+    }
+
+    .edgeever-editor-notebook-label,
+    .edgeever-editor-notebook-trigger > svg:last-child {
+      display: none;
+    }
+  }
+
+}
+
 .edgeever-workspace-sidebar-footer {
   background: var(--workspace-sidebar);
 }
@@ -670,7 +738,7 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
   .edgeever-workspace-grid--editor {
     grid-template-columns:
       var(--notebook-sidebar-width)
-      clamp(240px, 23vw, var(--memo-list-width))
+      var(--memo-list-width)
       minmax(0, 1fr);
   }
 

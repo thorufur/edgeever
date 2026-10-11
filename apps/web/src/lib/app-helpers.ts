@@ -156,7 +156,8 @@ export const NOTEBOOK_TREE_COLLAPSED_IDS_STORAGE_KEY = "edgeever.notebookTreeCol
 export const SHORTCUT_SETTINGS_STORAGE_KEY = "edgeever.shortcutSettings";
 export const DEFAULT_MEMO_LIST_WIDTH_PX = 360;
 export const MIN_MEMO_LIST_WIDTH_PX = 300;
-export const MAX_MEMO_LIST_WIDTH_PX = 540;
+export const MAX_MEMO_LIST_WIDTH_PX = 800;
+export const MIN_EDITOR_WIDTH_PX = 640;
 export const DEFAULT_NOTEBOOK_SIDEBAR_WIDTH_PX = 240;
 export const MIN_NOTEBOOK_SIDEBAR_WIDTH_PX = 180;
 export const MAX_NOTEBOOK_SIDEBAR_WIDTH_PX = 420;
@@ -474,9 +475,26 @@ export const writeMemoListDensityPreference = (density: MemoListDensity) => {
 export const clampMemoListWidth = (width: number) =>
   Math.min(MAX_MEMO_LIST_WIDTH_PX, Math.max(MIN_MEMO_LIST_WIDTH_PX, Math.round(width)));
 
+export const getMaxMemoListWidthForViewport = (
+  viewportWidth: number,
+  notebookSidebarWidth: number,
+) => Math.min(MAX_MEMO_LIST_WIDTH_PX, Math.max(0, viewportWidth - notebookSidebarWidth - MIN_EDITOR_WIDTH_PX));
+
+/** Reserve the editor and a usable list on compact three-pane desktops.
+ * Keep the saved preferences intact when the window temporarily gets smaller.
+ */
+export const getEditorPaneWidths = (viewportWidth: number, sidebarWidth: number, listWidth: number) => {
+  const sidebar = Math.min(sidebarWidth, Math.max(0, viewportWidth - MIN_EDITOR_WIDTH_PX - 180));
+  const maximum = getMaxMemoListWidthForViewport(viewportWidth, sidebar);
+  const minimum = Math.min(MIN_MEMO_LIST_WIDTH_PX, maximum);
+  return { sidebar, minimum, maximum, list: Math.min(maximum, Math.max(minimum, listWidth)) };
+};
+
 export const readMemoListWidthPreference = () => {
   try {
-    const width = Number(window.localStorage.getItem(MEMO_LIST_WIDTH_STORAGE_KEY));
+    const storedWidth = window.localStorage.getItem(MEMO_LIST_WIDTH_STORAGE_KEY);
+    if (storedWidth === null) return DEFAULT_MEMO_LIST_WIDTH_PX;
+    const width = Number(storedWidth);
     return Number.isFinite(width) ? clampMemoListWidth(width) : DEFAULT_MEMO_LIST_WIDTH_PX;
   } catch {
     return DEFAULT_MEMO_LIST_WIDTH_PX;

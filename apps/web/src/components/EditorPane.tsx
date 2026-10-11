@@ -3896,6 +3896,7 @@ const RichEditorPane = ({
             style={editorColumnMatchesArticle && editorScrollbarGutter > 0 ? { paddingRight: editorScrollbarGutter } : undefined}
           >
           <div
+            ref={setHeaderTitleSlot}
             className={cn(
               "min-w-0 w-full",
               isDesktopColumn && desktopFocusMode && "mx-auto",
@@ -3906,7 +3907,6 @@ const RichEditorPane = ({
             }}
           >
           <div
-            ref={setHeaderTitleSlot}
             className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-4 sm:flex-nowrap"
           >
           <MemoEditorTopRowLeading
