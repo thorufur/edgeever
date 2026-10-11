@@ -2733,6 +2733,7 @@ export const enUS = {
     deleteNotebookNotEmpty: "This notebook or one of its child notebooks still has notes. Move or delete those notes, then try again.",
     deleteNotebookFailed: "The notebook is still here. Please try again.",
     ok: "OK",
+    resizeNotebookSidebar: "Resize notebook pane",
     resizeMemoList: "Resize note list",
     resizeMemoListHint: "Drag to resize the list column, double-click to reset, or use arrow keys for fine tuning",
   },

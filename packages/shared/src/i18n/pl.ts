@@ -2722,6 +2722,7 @@ export const pl = {
     deleteNotebookNotEmpty: "Ten notatnik lub jeden z jego notatników podrzędnych nadal zawiera notatki. Przenieś lub usuń te notatki, a następnie spróbuj ponownie.",
     deleteNotebookFailed: "Notatnik nadal istnieje. Spróbuj ponownie.",
     ok: "OK",
+    resizeNotebookSidebar: "Zmień szerokość panelu notatników",
     resizeMemoList: "Zmień szerokość listy notatek",
     resizeMemoListHint: "Przeciągnij, aby zmienić szerokość kolumny listy, kliknij dwukrotnie, aby przywrócić domyślną, lub użyj klawiszy strzałek do precyzyjnej regulacji",
   },

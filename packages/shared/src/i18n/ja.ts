@@ -2722,6 +2722,7 @@ export const ja = {
     deleteNotebookNotEmpty: "このノートブックか子ノートブックにノートが残っています。先にノートを移動または削除してから、もう一度お試しください。",
     deleteNotebookFailed: "ノートブックは残っています。しばらくしてからもう一度お試しください。",
     ok: "OK",
+    resizeNotebookSidebar: "ノートブック欄の幅を変更",
     resizeMemoList: "ノート一覧の幅を変更",
     resizeMemoListHint: "ドラッグで一覧欄の幅を変え、ダブルクリックでリセット、矢印キーで微調整できます",
   },

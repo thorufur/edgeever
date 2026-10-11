@@ -5,6 +5,10 @@ import {
   DESKTOP_FOCUS_MODE_STORAGE_KEY,
   DESKTOP_READING_PROTECTION_STORAGE_KEY,
   NOTEBOOK_SIDEBAR_COLLAPSED_STORAGE_KEY,
+  NOTEBOOK_SIDEBAR_WIDTH_STORAGE_KEY,
+  DEFAULT_NOTEBOOK_SIDEBAR_WIDTH_PX,
+  MIN_NOTEBOOK_SIDEBAR_WIDTH_PX,
+  MAX_NOTEBOOK_SIDEBAR_WIDTH_PX,
   EDITOR_OUTLINE_COLLAPSED_STORAGE_KEY,
   EDITOR_CONTENT_ALIGNMENT_STORAGE_KEY,
   EDITOR_TOOLBAR_EXPANDED_STORAGE_KEY,
@@ -17,6 +21,7 @@ import {
   getCreateMemoNotebookId,
   getShortcutActionForEvent,
   canToggleNotebookSidebar,
+  clampNotebookSidebarWidth,
   getNotebookSortComparator,
   readEditorContentAlignmentPreference,
   readNotebookSortPreference,
@@ -24,6 +29,7 @@ import {
   readDesktopFocusModePreference,
   readDesktopReadingProtectionPreference,
   readNotebookSidebarCollapsedPreference,
+  readNotebookSidebarWidthPreference,
   readEditorOutlineCollapsedPreference,
   readEditorToolbarExpandedPreference,
   readEditorPhonePreviewPreference,
@@ -35,6 +41,7 @@ import {
   writeDesktopFocusModePreference,
   writeDesktopReadingProtectionPreference,
   writeNotebookSidebarCollapsedPreference,
+  writeNotebookSidebarWidthPreference,
   writeEditorOutlineCollapsedPreference,
   writeEditorToolbarExpandedPreference,
   writeEditorPhonePreviewPreference,
@@ -160,6 +167,49 @@ describe("notebook sidebar collapsed preference", () => {
 
     expect(readNotebookSidebarCollapsedPreference()).toBe(false);
     expect(() => writeNotebookSidebarCollapsedPreference(true)).not.toThrow();
+  });
+});
+
+describe("notebook sidebar width preference", () => {
+  test("defaults to the standard width and clamps stored values", () => {
+    const values = installLocalStorage();
+    expect(readNotebookSidebarWidthPreference()).toBe(DEFAULT_NOTEBOOK_SIDEBAR_WIDTH_PX);
+
+    values.set(NOTEBOOK_SIDEBAR_WIDTH_STORAGE_KEY, String(MIN_NOTEBOOK_SIDEBAR_WIDTH_PX - 100));
+    expect(readNotebookSidebarWidthPreference()).toBe(MIN_NOTEBOOK_SIDEBAR_WIDTH_PX);
+
+    values.set(NOTEBOOK_SIDEBAR_WIDTH_STORAGE_KEY, String(MAX_NOTEBOOK_SIDEBAR_WIDTH_PX + 100));
+    expect(readNotebookSidebarWidthPreference()).toBe(MAX_NOTEBOOK_SIDEBAR_WIDTH_PX);
+
+    values.set(NOTEBOOK_SIDEBAR_WIDTH_STORAGE_KEY, "invalid");
+    expect(readNotebookSidebarWidthPreference()).toBe(DEFAULT_NOTEBOOK_SIDEBAR_WIDTH_PX);
+  });
+
+  test("rounds, clamps, and persists widths", () => {
+    const values = installLocalStorage();
+    expect(clampNotebookSidebarWidth(253.6)).toBe(254);
+
+    writeNotebookSidebarWidthPreference(253.6);
+    expect(values.get(NOTEBOOK_SIDEBAR_WIDTH_STORAGE_KEY)).toBe("254");
+
+    writeNotebookSidebarWidthPreference(MAX_NOTEBOOK_SIDEBAR_WIDTH_PX + 100);
+    expect(values.get(NOTEBOOK_SIDEBAR_WIDTH_STORAGE_KEY)).toBe(String(MAX_NOTEBOOK_SIDEBAR_WIDTH_PX));
+  });
+
+  test("falls back safely when local storage is unavailable", () => {
+    globalThis.window = {
+      localStorage: {
+        getItem: () => {
+          throw new Error("blocked");
+        },
+        setItem: () => {
+          throw new Error("blocked");
+        },
+      },
+    };
+
+    expect(readNotebookSidebarWidthPreference()).toBe(DEFAULT_NOTEBOOK_SIDEBAR_WIDTH_PX);
+    expect(() => writeNotebookSidebarWidthPreference(280)).not.toThrow();
   });
 });
 

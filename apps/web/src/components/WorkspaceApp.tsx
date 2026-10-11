@@ -68,6 +68,9 @@ import {
   MIN_MEMO_LIST_WIDTH_PX,
   MAX_MEMO_LIST_WIDTH_PX,
   DEFAULT_MEMO_LIST_WIDTH_PX,
+  MIN_NOTEBOOK_SIDEBAR_WIDTH_PX,
+  MAX_NOTEBOOK_SIDEBAR_WIDTH_PX,
+  DEFAULT_NOTEBOOK_SIDEBAR_WIDTH_PX,
   EDITOR_OUTLINE_COLLAPSED_STORAGE_KEY,
   isTextEntryTarget,
   getSearchShortcutScope,
@@ -500,11 +503,14 @@ export const WorkspaceApp = ({
     imageCompressionEnabled,
     memoListWidth,
     notebookSidebarCollapsed,
+    notebookSidebarWidth,
     resetMemoListWidth,
+    resetNotebookSidebarWidth,
     setDesktopFocusMode,
     setImageCompressionEnabled,
     setMemoListWidth,
     setNotebookSidebarCollapsed,
+    setNotebookSidebarWidth,
     setShortcutSettings,
     shortcutSettings,
   } = useWorkspacePreferences();
@@ -2960,6 +2966,64 @@ export const WorkspaceApp = ({
     window.addEventListener("pointerup", handlePointerUp);
   };
 
+  const handleNotebookSidebarResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!isDesktopViewport() || desktopNotebookSidebarCollapsed) {
+      return;
+    }
+
+    event.preventDefault();
+    event.currentTarget.focus({ preventScroll: true });
+    const startX = event.clientX;
+    const startWidth = notebookSidebarWidth;
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      setNotebookSidebarWidth(startWidth + moveEvent.clientX - startX);
+    };
+
+    const handlePointerUp = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+  };
+
+  const handleNotebookSidebarResizeKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!isDesktopViewport() || desktopNotebookSidebarCollapsed) {
+      return;
+    }
+
+    const step = event.shiftKey ? 48 : 16;
+    let nextWidth: number | null = null;
+
+    if (event.key === "ArrowLeft") {
+      nextWidth = notebookSidebarWidth - step;
+    } else if (event.key === "ArrowRight") {
+      nextWidth = notebookSidebarWidth + step;
+    } else if (event.key === "Home") {
+      nextWidth = MIN_NOTEBOOK_SIDEBAR_WIDTH_PX;
+    } else if (event.key === "End") {
+      nextWidth = MAX_NOTEBOOK_SIDEBAR_WIDTH_PX;
+    } else if (event.key === "Enter" || event.key === " ") {
+      nextWidth = DEFAULT_NOTEBOOK_SIDEBAR_WIDTH_PX;
+    }
+
+    if (nextWidth === null) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    setNotebookSidebarWidth(nextWidth);
+  };
+
   const handleResetMemoListWidth = () => {
     resetMemoListWidth();
   };
@@ -3064,12 +3128,15 @@ export const WorkspaceApp = ({
                 : "edgeever-workspace-grid--single-right",
             !desktopFocusModeActive && desktopNotebookSidebarCollapsed && "edgeever-workspace-grid--sidebar-collapsed"
           )}
-          style={{ "--memo-list-width": `${memoListWidth}px` } as CSSProperties}
+          style={{
+            "--memo-list-width": `${memoListWidth}px`,
+            "--notebook-sidebar-expanded-width": `${notebookSidebarWidth}px`,
+          } as CSSProperties}
         >
           <aside
             id="edgeever-notebook-sidebar"
             className={cn(
-              "edgeever-workspace-sidebar min-h-0 overflow-hidden border-r",
+              "edgeever-workspace-sidebar relative min-h-0 overflow-hidden border-r",
               desktopFocusModeActive
                 ? "hidden"
                 : visibleActivePane === "notebooks"
@@ -3137,6 +3204,21 @@ export const WorkspaceApp = ({
                   collapseShortcutLabel={formatShortcutBinding(shortcutSettings.toggleSidebar)}
                 />
               </Suspense>
+            )}
+            {!desktopNotebookSidebarCollapsed && (
+              <div
+                className="absolute inset-y-0 right-[-3px] z-20 hidden w-1.5 cursor-col-resize transition hover:bg-slate-300/70 focus-visible:bg-slate-400/80 focus-visible:outline-none lg:block"
+                role="separator"
+                aria-orientation="vertical"
+                aria-valuemin={MIN_NOTEBOOK_SIDEBAR_WIDTH_PX}
+                aria-valuemax={MAX_NOTEBOOK_SIDEBAR_WIDTH_PX}
+                aria-valuenow={notebookSidebarWidth}
+                aria-label={t("workspaceDialogs.resizeNotebookSidebar")}
+                tabIndex={0}
+                onDoubleClick={resetNotebookSidebarWidth}
+                onKeyDown={handleNotebookSidebarResizeKeyDown}
+                onPointerDown={handleNotebookSidebarResizePointerDown}
+              />
             )}
           </aside>
 

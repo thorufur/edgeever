@@ -2731,6 +2731,7 @@ export const zhCN = {
     deleteNotebookNotEmpty: "这个笔记本或它的子笔记本里还有笔记。请先把笔记移走或删除，再删除笔记本。",
     deleteNotebookFailed: "删除没有完成，笔记本还在。请稍后重试。",
     ok: "知道了",
+    resizeNotebookSidebar: "调整笔记本栏宽度",
     resizeMemoList: "调整笔记列表宽度",
     resizeMemoListHint: "拖拽调整列表栏宽度，双击恢复默认，方向键微调",
   },
