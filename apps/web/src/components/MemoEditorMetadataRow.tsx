@@ -67,6 +67,11 @@ export const MemoEditorMetadataRow = ({
       context.font = style.font;
       const titleWidth = context.measureText(input.value || input.placeholder).width
         + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 2;
+      const leading = input.closest<HTMLElement>("[data-editor-top-row-leading]");
+      const titleSlot = input.closest<HTMLElement>("[data-editor-title-slot]");
+      const leadingControlsWidth = leading && titleSlot
+        ? Math.max(0, leading.getBoundingClientRect().width - titleSlot.getBoundingClientRect().width)
+        : 0;
       const slotStyle = getComputedStyle(slot);
       const available = slot.clientWidth - parseFloat(slotStyle.paddingLeft)
         - parseFloat(slotStyle.paddingRight) - (parseFloat(slotStyle.columnGap) || 0);
@@ -82,7 +87,7 @@ export const MemoEditorMetadataRow = ({
       let next = "compact";
       for (const candidate of ["full", "tags", "compact"]) {
         probe.dataset.metadataDensity = candidate;
-        if (titleWidth + probe.getBoundingClientRect().width <= available) {
+        if (leadingControlsWidth + titleWidth + probe.getBoundingClientRect().width <= available) {
           next = candidate;
           break;
         }

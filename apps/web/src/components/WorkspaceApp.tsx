@@ -3008,12 +3008,13 @@ export const WorkspaceApp = ({
     }
 
     const step = event.shiftKey ? 48 : 16;
+    const displayedWidth = rightView === "editor" ? editorPaneWidths.sidebar : notebookSidebarWidth;
     let nextWidth: number | null = null;
 
     if (event.key === "ArrowLeft") {
-      nextWidth = notebookSidebarWidth - step;
+      nextWidth = displayedWidth - step;
     } else if (event.key === "ArrowRight") {
-      nextWidth = notebookSidebarWidth + step;
+      nextWidth = displayedWidth + step;
     } else if (event.key === "Home") {
       nextWidth = MIN_NOTEBOOK_SIDEBAR_WIDTH_PX;
     } else if (event.key === "End") {
