@@ -3207,7 +3207,7 @@ export const WorkspaceApp = ({
             )}
             {!desktopNotebookSidebarCollapsed && (
               <div
-                className="absolute inset-y-0 right-[-3px] z-20 hidden w-1.5 cursor-col-resize transition hover:bg-slate-300/70 focus-visible:bg-slate-400/80 focus-visible:outline-none lg:block"
+                className="absolute inset-y-0 right-0 z-20 hidden w-1.5 touch-none cursor-col-resize transition hover:bg-slate-300/70 focus-visible:bg-slate-400/80 focus-visible:outline-none lg:block"
                 role="separator"
                 aria-orientation="vertical"
                 aria-valuemin={MIN_NOTEBOOK_SIDEBAR_WIDTH_PX}
