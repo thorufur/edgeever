@@ -1,4 +1,4 @@
-import { AlignVerticalSpaceAround, AppWindow, BookOpenText, ChartNoAxesCombined, Code2, Image, Keyboard, Languages, ListTree, MousePointerClick, Palette, Sparkles, SpellCheck, SunMoon, Type } from "lucide-react";
+import { AlignVerticalSpaceAround, AppWindow, BookOpenText, ChartNoAxesCombined, Code2, Image, Keyboard, Languages, ListTree, MousePointerClick, Palette, Sparkles, SpellCheck, SunMoon, Trash2, Type } from "lucide-react";
 import { useState, useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { NoteProsePatch, NoteProsePaletteChoice, ResolvedNoteProse } from "@edgeever/shared";
@@ -50,6 +50,7 @@ import { applyUiFontPreference, readUiFontPreference, writeUiFontPreference } fr
 import { syncPublishedNoteBodyFont } from "@/lib/published-note-body-font";
 import { useShowDescendantNotesPreference, writeShowDescendantNotesPreference } from "@/lib/descendant-notes-preference";
 import { PicGoSettingsItem } from "./PicGoSettingsItem";
+import { useConfirmNoteDeletionPreference, writeConfirmNoteDeletionPreference } from "@/lib/note-deletion-preference";
 import { NoteProseCssEditor } from "./NoteProseCssEditor";
 import { NoteProseCssPreview } from "./NoteProseCssPreview";
 
@@ -213,6 +214,7 @@ export const PreferenceCard = ({
 }: PreferenceCardProps) => {
   const { t } = useTranslation();
   const showDescendantNotes = useShowDescendantNotesPreference();
+  const confirmNoteDeletion = useConfirmNoteDeletionPreference();
   const { preference: appearancePreference, resolvedTheme, setPreference: setAppearancePreference } = useAppearanceTheme();
   const { mermaidThemePreference, setMermaidTheme } = useMermaidTheme();
   const [cssDialogOpen, setCssDialogOpen] = useState(false);
@@ -414,6 +416,25 @@ export const PreferenceCard = ({
               onCheckedChange={writeShowDescendantNotesPreference}
               aria-label={t("settings.showDescendantNotesAria")}
             />
+          </div>
+        </div>
+        <div className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <Trash2 className={SETTINGS_ITEM_ICON_CLASSNAME} />
+            <div className="min-w-0">
+              <div className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.confirmNoteDeletionTitle")}</div>
+            </div>
+          </div>
+          <div className="w-full shrink-0 sm:w-44">
+            <Select value={confirmNoteDeletion ? "yes" : "no"} onValueChange={(value) => writeConfirmNoteDeletionPreference(value === "yes")}>
+              <SelectTrigger aria-label={t("settings.confirmNoteDeletionTitle")} className="h-9 bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="yes">{t("settings.confirmNoteDeletionYes")}</SelectItem>
+                <SelectItem value="no">{t("settings.confirmNoteDeletionNo")}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </PreferenceSection>

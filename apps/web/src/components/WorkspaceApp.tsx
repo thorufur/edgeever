@@ -27,6 +27,7 @@ import { AppConfirmDialog, MemoDeleteConfirmDialog, NotebookNameDialog } from ".
 import { PluginPanelDialog } from "./plugins/PluginPanelDialog";
 import { shouldDiscardPluginNoteSearchRequest } from "./editor/note-search";
 import { api, getOrCreateClientDeviceId } from "@/lib/api";
+import { useConfirmNoteDeletionPreference } from "@/lib/note-deletion-preference";
 import { useShowDescendantNotesPreference } from "@/lib/descendant-notes-preference";
 import { MarkdownExportMemoryLimitError, type MarkdownExportProgress } from "@/lib/markdown-export";
 import { exportSelectedMemosAsMarkdownZip } from "@/lib/selected-markdown-export";
@@ -1060,6 +1061,7 @@ export const WorkspaceApp = ({
   });
 
   const showDescendantNotes = useShowDescendantNotesPreference();
+  const confirmNoteDeletion = useConfirmNoteDeletionPreference();
   useEffect(() => {
     // A changed scope must not retain hidden notes in bulk actions.
     clearMemoSelection();
@@ -2170,7 +2172,7 @@ export const WorkspaceApp = ({
       return;
     }
 
-    if (memoView !== "trash") {
+    if (memoView !== "trash" && !confirmNoteDeletion) {
       deleteMemosMutation.mutate({
         memoIds: Array.from(selectedMemoIds),
         permanent: false,
@@ -2181,7 +2183,7 @@ export const WorkspaceApp = ({
     setMemoDeleteConfirmation({
       kind: "bulk",
       memoIds: Array.from(selectedMemoIds),
-      permanent: true,
+      permanent: memoView === "trash",
     });
   };
 
@@ -2272,11 +2274,11 @@ export const WorkspaceApp = ({
   ) : null;
 
   const handleDeleteMemoFromList = (memoId: string) => {
-    if (memoView !== "trash") {
+    if (memoView !== "trash" && !confirmNoteDeletion) {
       deleteMemoMutation.mutate({ memoId, permanent: false });
       return;
     }
-    setMemoDeleteConfirmation({ kind: "single", memoIds: [memoId], permanent: true });
+    setMemoDeleteConfirmation({ kind: "single", memoIds: [memoId], permanent: memoView === "trash" });
   };
 
   const handleConfirmMemoDeletion = () => {
@@ -3209,7 +3211,6 @@ export const WorkspaceApp = ({
                     setSelectedMemoId(null);
                     setActivePane("memos");
                   }}
-                  onEmptyTrash={handleEmptyTrash}
                   demoMode={demoMode}
                   onResetDemo={() => setDemoResetConfirmationOpen(true)}
                   isResettingDemo={resetDemoMutation.isPending}
@@ -3491,7 +3492,7 @@ export const WorkspaceApp = ({
                             setActivePane("memos");
                           }}
                           onDeleted={async (memoId) => {
-                            deleteMemoMutation.mutate({ memoId, permanent: false });
+                            handleDeleteMemoFromList(memoId);
                           }}
                           onPermanentDeleted={async (memoId) => {
                             setMemoDeleteConfirmation({ kind: "single", memoIds: [memoId], permanent: true });
@@ -3707,7 +3708,7 @@ export const WorkspaceApp = ({
                       ]);
                     }}
                     onDeleted={async (memoId) => {
-                      deleteMemoMutation.mutate({ memoId, permanent: false });
+                      handleDeleteMemoFromList(memoId);
                     }}
                     onPermanentDeleted={async (memoId) => {
                       setMemoDeleteConfirmation({ kind: "single", memoIds: [memoId], permanent: true });

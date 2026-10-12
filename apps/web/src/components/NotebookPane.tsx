@@ -206,36 +206,6 @@ const SidebarShortcutButton = ({
   );
 };
 
-const SidebarTrashShortcut = ({
-  active = false,
-  onOpenTrash,
-  onEmptyTrash,
-}: {
-  active?: boolean;
-  onOpenTrash: () => void;
-  onEmptyTrash: () => void;
-}) => {
-  const { t } = useTranslation();
-
-  return (
-    <div className="group relative min-w-0 [container-type:inline-size]">
-      <SidebarShortcutButton active={active} icon={<Trash2 className="h-4 w-4" />} label={t("notebookPane.trash")} onClick={onOpenTrash} showTooltip={false} />
-      {!active && (
-        <div className="pointer-events-none absolute right-0 top-full z-20 w-max pt-1 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
-          <button
-            className="relative flex h-8 items-center gap-1.5 rounded-md border border-rose-200 bg-card px-2 text-xs font-medium text-rose-700 shadow-lg shadow-slate-900/10 transition-colors before:absolute before:-top-1 before:right-[calc(50cqw-4px)] before:h-2 before:w-2 before:rotate-45 before:border-l before:border-t before:border-rose-200 before:bg-card hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/70"
-            type="button"
-            onClick={onEmptyTrash}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            {t("notebookPane.emptyTrash")}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
-
 const SidebarSectionLabel = ({ icon, label }: { icon: ReactNode; label: string }) => (
   <div className="flex h-9 items-center gap-3 px-3 text-xs font-medium leading-none tracking-wide text-slate-500">
     <span className="flex h-4 w-4 shrink-0 items-center justify-center">{icon}</span>
@@ -498,7 +468,6 @@ export const NotebookPane = ({
   pluginHost,
   onOpenPluginManager,
   onOpenTrash,
-  onEmptyTrash,
   onOpenSettings,
   onCreateMemo,
   canCreateMemo,
@@ -537,7 +506,6 @@ export const NotebookPane = ({
   pluginHost: EdgeEverPluginHost;
   onOpenPluginManager: () => void;
   onOpenTrash: () => void;
-  onEmptyTrash: () => void;
   onOpenSettings: () => void;
   onCreateMemo: (kind?: NoteCreateKind) => void;
   canCreateMemo: boolean;
@@ -698,7 +666,7 @@ export const NotebookPane = ({
       </header>
 
       <TooltipProvider delayDuration={0} skipDelayDuration={0}>
-        <nav className="grid shrink-0 grid-cols-2 gap-0.5 border-b border-slate-100 px-2 py-1.5 sm:grid-cols-3 lg:grid-cols-5" aria-label={t("notebookPane.secondaryEntries")}>
+        <nav className="grid shrink-0 grid-cols-2 gap-0.5 border-b border-slate-100 px-2 py-1.5 sm:grid-cols-3 lg:grid-cols-4" aria-label={t("notebookPane.secondaryEntries")}>
           <SidebarShortcutButton icon={<Tag className="h-4 w-4" />} label={t("mobileSheets.tags")} onClick={onOpenTags} />
           <SidebarShortcutButton icon={<Paperclip className="h-4 w-4" />} label={t("mobileSheets.assets")} onClick={onOpenAssets} />
           {showTemplateEntry && <SidebarShortcutButton icon={<LayoutTemplate className="h-4 w-4" />} label={t("nav.templates")} onClick={onOpenTemplates} />}
@@ -708,7 +676,6 @@ export const NotebookPane = ({
             align="start"
             className="h-9 w-full rounded-md px-0 text-slate-600 hover:bg-slate-50 hover:text-slate-950"
           />
-          <SidebarTrashShortcut active={view === "trash"} onOpenTrash={onOpenTrash} onEmptyTrash={onEmptyTrash} />
         </nav>
       </TooltipProvider>
 
@@ -760,7 +727,7 @@ export const NotebookPane = ({
 
       <div
         ref={notebookScrollRef}
-        className="flex-1 overflow-y-auto px-3 py-4 lg:pt-0"
+        className="min-h-0 flex-1 overflow-y-auto px-3 py-4 lg:pt-0"
         onDragEnd={stopNotebookDragAutoScroll}
         onDragLeave={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
@@ -848,7 +815,7 @@ export const NotebookPane = ({
         {isLoading ? (
           <div className="mb-4 px-2 py-3 text-sm text-slate-500">{t("notebookPane.loading")}</div>
         ) : (
-          <div className="mb-4 space-y-1" data-notebook-tree>
+          <div className="space-y-1" data-notebook-tree>
             {tree.map((node) => (
               <NotebookTreeItem
                 key={node.id}
@@ -872,6 +839,14 @@ export const NotebookPane = ({
           </div>
         )}
 
+        <nav className="mt-1" aria-label={t("notebookPane.trash")}>
+          <SidebarNavButton
+            active={view === "trash"}
+            icon={<Trash2 className="h-4 w-4" />}
+            label={t("notebookPane.trash")}
+            onClick={onOpenTrash}
+          />
+        </nav>
       </div>
       </div>
 
