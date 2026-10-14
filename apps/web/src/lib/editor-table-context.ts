@@ -20,3 +20,10 @@ export const selectTableContextTarget = (view: EditorView, cell: HTMLElement, co
   if (!insideSelection) view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(pos))));
   return true;
 };
+
+/** Legacy mouse contextmenu events may omit pointerType; remember the initiating pointer. */
+export const isMouseTableContextEvent = (
+  event: { shiftKey: boolean; pointerType?: string; sourceCapabilities?: { firesTouchEvents?: boolean } | null },
+  lastPointerType: string | null,
+) => !event.shiftKey && !event.sourceCapabilities?.firesTouchEvents
+  && (event.pointerType || lastPointerType) === "mouse";

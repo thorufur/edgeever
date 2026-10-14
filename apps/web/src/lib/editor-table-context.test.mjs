@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Schema } from '@tiptap/pm/model';
 import { EditorState, TextSelection } from '@tiptap/pm/state';
 import { CellSelection, tableNodes } from '@tiptap/pm/tables';
-import { selectTableContextTarget } from './editor-table-context.ts';
+import { isMouseTableContextEvent, selectTableContextTarget } from './editor-table-context.ts';
 
 const schema = new Schema({ nodes: {
   doc: { content: 'block+' }, paragraph: { content: 'text*', group: 'block' }, text: {},
@@ -76,4 +76,16 @@ test('keyboard context preserves selection and cursor within the current cell', 
   const cursor = mockView(TextSelection.create(doc, positions[0] + 5));
   selectTableContextTarget(cursor, {});
   assert.equal(cursor.state.selection.from, positions[0] + 5);
+});
+
+test('mouse and legacy mouse events are accepted, touch and pen stay native', () => {
+  assert.equal(isMouseTableContextEvent({ shiftKey: false, pointerType: 'mouse' }, null), true);
+  assert.equal(isMouseTableContextEvent({ shiftKey: false }, 'mouse'), true);
+  for (const pointerType of ['touch', 'pen']) {
+    assert.equal(isMouseTableContextEvent({ shiftKey: false, pointerType }, 'mouse'), false);
+    assert.equal(isMouseTableContextEvent({ shiftKey: false }, pointerType), false);
+  }
+  assert.equal(isMouseTableContextEvent({ shiftKey: true, pointerType: 'mouse' }, 'mouse'), false);
+  assert.equal(isMouseTableContextEvent({ shiftKey: false, sourceCapabilities: { firesTouchEvents: true } }, 'mouse'), false);
+  assert.equal(isMouseTableContextEvent({ shiftKey: false }, null), false);
 });

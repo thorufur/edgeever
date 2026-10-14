@@ -4,8 +4,9 @@ import { useTranslation } from "react-i18next";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuShortcut, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { ClipboardCopyNotice } from "@/components/ClipboardCopyNotice";
 import { copyHtmlToClipboard, copyTextToClipboard } from "@/lib/clipboard";
+import { readTableClipboard } from "@/lib/editor-table-clipboard";
 import { getEditorTableActions } from "@/lib/editor-table-actions";
-import { selectTableContextTarget } from "@/lib/editor-table-context";
+import { isMouseTableContextEvent, selectTableContextTarget } from "@/lib/editor-table-context";
 
 export const EditorTableContextMenu = ({ editor, readOnly, children }: {
   editor: Editor | null;
@@ -15,8 +16,11 @@ export const EditorTableContextMenu = ({ editor, readOnly, children }: {
   const { t } = useTranslation();
   const [notice, setNotice] = useState<{ message: string; status: "copied" | "error" } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const pending = useRef(false);
   const interactedOutside = useRef(false);
+  const trigger = useRef<HTMLSpanElement>(null);
+  const pointerType = useRef<string | null>(null);
   const target = useRef<Editor["state"] | null>(null);
   const mounted = useRef(true);
   useEffect(() => {
@@ -36,17 +40,25 @@ export const EditorTableContextMenu = ({ editor, readOnly, children }: {
   const canCopy = Boolean((state ?? 0) & 4);
   const modifier = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
 
-  const prepare = (event: MouseEvent<HTMLDivElement>) => {
-    const cell = event.target instanceof Element ? event.target.closest<HTMLElement>("td, th") : null;
-    if (event.shiftKey || readOnly || !editor || editor.isDestroyed || !cell
-      || !selectTableContextTarget(editor.view, cell, event.button === 2 ? { left: event.clientX, top: event.clientY } : undefined)) {
-      // Do not preventDefault: the normal browser menu must remain available elsewhere.
-      event.stopPropagation();
-      return;
-    }
+  const openMenu = (cell: HTMLElement, point: { left: number; top: number }, keyboard = false) => {
+    if (readOnly || !editor || editor.isDestroyed
+      || !selectTableContextTarget(editor.view, cell, keyboard ? undefined : point)) return false;
     interactedOutside.current = false;
     target.current = editor.state;
     setNotice(null);
+    // Keep Radix's trigger separate from the editor: its native long-press handler
+    // and touch-callout style must not interfere with text selection or node views.
+    trigger.current?.dispatchEvent(new globalThis.MouseEvent("contextmenu", {
+      bubbles: true, cancelable: true, button: 2, clientX: point.left, clientY: point.top,
+    }));
+    return true;
+  };
+
+  const prepare = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.target === trigger.current || event.defaultPrevented
+      || !isMouseTableContextEvent(event.nativeEvent, pointerType.current)) return;
+    const cell = event.target instanceof Element ? event.target.closest<HTMLElement>("td, th") : null;
+    if (cell && openMenu(cell, { left: event.clientX, top: event.clientY })) event.preventDefault();
   };
 
   const validTarget = () => {
@@ -57,18 +69,14 @@ export const EditorTableContextMenu = ({ editor, readOnly, children }: {
   };
 
   const openFromKeyboard = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "ContextMenu" && !(event.key === "F10" && event.shiftKey)) return;
+    if (event.defaultPrevented || (event.key !== "ContextMenu" && !(event.key === "F10" && event.shiftKey))) return;
     if (!editor || editor.isDestroyed || !editor.isEditable || readOnly || !editor.isActive("table")) return;
     const { node } = editor.view.domAtPos(editor.state.selection.from);
     const element = node instanceof Element ? node : node.parentElement;
     const cell = element?.closest<HTMLElement>("td, th");
     if (!cell || !editor.view.dom.contains(cell)) return;
     const bounds = editor.view.coordsAtPos(editor.state.selection.from);
-    event.preventDefault();
-    // Radix uses these coordinates for the menu's virtual anchor.
-    cell.dispatchEvent(new globalThis.MouseEvent("contextmenu", {
-      bubbles: true, cancelable: true, button: 0, clientX: bounds.left, clientY: bounds.bottom,
-    }));
+    if (openMenu(cell, { left: bounds.left, top: bounds.bottom }, true)) event.preventDefault();
   };
 
   const copy = async () => {
@@ -92,23 +100,7 @@ export const EditorTableContextMenu = ({ editor, readOnly, children }: {
     pending.current = true;
     setBusy(true);
     try {
-      let html = "";
-      let text = "";
-      const images: File[] = [];
-      if (navigator.clipboard?.read) {
-        const items = await navigator.clipboard.read();
-        for (const item of items) {
-          if (item.types.includes("text/html")) html += await (await item.getType("text/html")).text();
-          if (item.types.includes("text/plain")) text += await (await item.getType("text/plain")).text();
-          for (const type of item.types.filter((type) => type.startsWith("image/"))) {
-            images.push(new File([await item.getType(type)], `clipboard.${type.split("/")[1]}`, { type }));
-          }
-        }
-      } else if (navigator.clipboard?.readText) {
-        text = await navigator.clipboard.readText();
-      } else {
-        throw new Error("Clipboard read unavailable");
-      }
+      const { html, text, images } = await readTableClipboard(navigator.clipboard);
       // A permission prompt may outlive a note switch or an edit. Never paste into a changed target.
       if (!mounted.current || editor.isDestroyed) return;
       if (!editor.isEditable || editor.state.doc !== doc || !editor.state.selection.eq(selection)) {
@@ -133,35 +125,37 @@ export const EditorTableContextMenu = ({ editor, readOnly, children }: {
   };
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild disabled={readOnly || !editor || editor.isDestroyed}>
-        <div
-          onContextMenuCapture={prepare}
-          onKeyDown={openFromKeyboard}
-          onPointerDownCapture={(event) => {
-            // This desktop experiment must not override native touch selection with Radix long-press.
-            if (event.pointerType !== "mouse") event.stopPropagation();
-          }}
-        >{children}</div>
-      </ContextMenuTrigger>
+    <ContextMenu open={menuOpen} onOpenChange={setMenuOpen}>
+      <div
+        onContextMenu={prepare}
+        onKeyDown={openFromKeyboard}
+        onPointerDownCapture={(event) => { pointerType.current = event.pointerType; }}
+      >
+        {children}
+        <ContextMenuTrigger asChild disabled={readOnly || !editor || editor.isDestroyed}>
+          <span ref={trigger} aria-hidden="true" />
+        </ContextMenuTrigger>
+      </div>
       <ContextMenuContent
         onInteractOutside={() => { interactedOutside.current = true; }}
         onCloseAutoFocus={(event) => {
           event.preventDefault();
-          if (!interactedOutside.current && editor && !editor.isDestroyed) editor.view.focus();
+          if (!interactedOutside.current && editor && !editor.isDestroyed) {
+            editor.commands.focus(undefined, { scrollIntoView: false });
+          }
         }}
       >
-        <ContextMenuItem disabled={!canCopy || busy} onSelect={() => void copy()}>
+        <ContextMenuItem disabled={!canCopy || busy} onSelect={() => { void copy(); setMenuOpen(false); }}>
           {t("aiAssistant.sidebar.selection.copy")}<ContextMenuShortcut>{modifier}C</ContextMenuShortcut>
         </ContextMenuItem>
-        <ContextMenuItem disabled={readOnly || busy} onSelect={() => void paste()}>
+        <ContextMenuItem disabled={readOnly || busy} onSelect={() => { void paste(); setMenuOpen(false); }}>
           {t("editor.paste")}<ContextMenuShortcut>{modifier}V</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuSeparator />
         {getEditorTableActions(editor, readOnly).map((action) => (
           <Fragment key={action.key}>
             {action.destructive ? <ContextMenuSeparator /> : null}
-            <ContextMenuItem disabled={action.disabled || busy} className={action.destructive ? "text-rose-700 focus:text-rose-800" : undefined} onSelect={() => { if (validTarget()) action.run(); }}>
+            <ContextMenuItem disabled={action.disabled || busy} className={action.destructive ? "text-rose-700 focus:text-rose-800" : undefined} onSelect={() => { if (validTarget()) action.run(); setMenuOpen(false); }}>
               {t(action.key)}
             </ContextMenuItem>
           </Fragment>
