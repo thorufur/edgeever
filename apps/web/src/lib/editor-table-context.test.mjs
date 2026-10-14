@@ -58,6 +58,24 @@ test('empty cell area and keyboard context invocation find a valid text cursor',
   selectTableContextTarget(view, {}, { left: 0, top: 0 });
   assert.equal(view.state.selection.from, positions[1] + 2);
 });
+test('cell-end whitespace stays in the clicked cell instead of the next cell or paragraph', () => {
+  for (const index of [0, 3]) {
+    const cellEnd = positions[index] + 1 + doc.nodeAt(positions[index]).content.size;
+    const view = mockView(TextSelection.create(doc, 1), index, cellEnd);
+    assert.equal(selectTableContextTarget(view, {}, { left: 0, top: 0 }), true);
+    assert.equal(view.state.selection.from, cellEnd - 1);
+    assert.equal(view.state.selection.$from.node(-1), doc.nodeAt(positions[index]));
+  }
+});
+test('table-like DOM inside node views must map to an actual editor table cell', () => {
+  const view = mockView(TextSelection.create(doc, positions[0] + 2));
+  const selection = view.state.selection;
+  for (const contentPos of [0, 1, 2, doc.content.size + 1]) {
+    view.posAtDOM = () => contentPos;
+    assert.equal(selectTableContextTarget(view, {}, { left: 0, top: 0 }), false);
+    assert.equal(view.state.selection, selection);
+  }
+});
 test('read-only and foreign cells keep the selection unchanged', () => {
   const view = mockView(TextSelection.create(doc, 1));
   view.editable = false;

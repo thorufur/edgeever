@@ -20,8 +20,14 @@ await i18n.init({ lng: "en", resources: { en: { translation: enUS } }, initAsync
 const style = document.createElement("style");
 style.textContent = ".ProseMirror{outline:none;padding:12px}.ProseMirror table{border-collapse:collapse;width:540px}.ProseMirror td,.ProseMirror th{border:1px solid #aaa;min-width:150px;padding:12px}.selectedCell{background:#def}";
 document.head.appendChild(style);
+const diagnostics = document.createElement('div');
+diagnostics.style.cssText = 'position:fixed;bottom:0;left:0;z-index:1000;background:white;color:black;font:12px monospace;padding:4px';
+document.body.appendChild(diagnostics);
+let ticks = 0;
+setInterval(() => { diagnostics.textContent = `tick=${++ticks} visibility=${document.visibilityState} state=${document.querySelector('[data-table-context-open]')?.getAttribute('data-table-context-open')} menu=${document.querySelector('[role="menu"]')?.getAttribute('data-state')} active=${document.activeElement?.tagName}`; }, 100);
 const fixture = document.getElementById("fixture")!;
 const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+const originalDesktop = Object.getOwnPropertyDescriptor(window, "edgeeverDesktop");
 let editor: Editor;
 let root: Root | undefined;
 let receivedNodeContext = 0;
@@ -63,10 +69,23 @@ const restoreClipboard = () => {
   if (originalClipboard) Object.defineProperty(navigator, "clipboard", originalClipboard);
   else delete (navigator as { clipboard?: Clipboard }).clipboard;
 };
+const restoreDesktop = () => {
+  if (originalDesktop) Object.defineProperty(window, "edgeeverDesktop", originalDesktop);
+  else delete window.edgeeverDesktop;
+};
+const stubNativeRead = (readClipboard: () => Promise<{ html: string; text: string; images: Uint8Array[] }>) => Object.defineProperty(window, "edgeeverDesktop", {
+  configurable: true, value: { isAvailable: true, readClipboard },
+});
+const nativePasteEvent = (target: HTMLElement = editor.view.dom) => {
+  const data = new DataTransfer(); data.setData("text/plain", "Native paste");
+  const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data });
+  target.dispatchEvent(event); return event;
+};
 const mount = async (readOnly = false) => {
   root?.unmount();
   if (editor && !editor.isDestroyed) editor.destroy();
   fixture.replaceChildren();
+  restoreDesktop();
   receivedNodeContext = receivedPointer = 0; uploaded = []; writes = [];
   editor = new Editor({ extensions: [StarterKit, TableKit, TestResource], content, editable: !readOnly,
     editorProps: { handlePaste(_view, event) { if (!event.clipboardData?.files.length) return false; uploaded = [...event.clipboardData.files]; return true; } },
@@ -110,7 +129,8 @@ const choose = async (label: string) => {
   item!.click();
   document.getElementById("summary")!.textContent += " | waiting for close";
   await until(() => !menu(), "menu action close");
-  await pause(40);
+  await until(() => !document.querySelector('[role="menu"]'), "menu focus scope teardown");
+  await pause(30);
 };
 const check = (name: string, run: () => Promise<void>) => ({ name, run });
 const checks = [
@@ -133,6 +153,13 @@ const checks = [
   check("Header row deletion remains disabled", async () => {
     setCursor(6); await open(0);
     assert(menuItem("Delete current row")?.getAttribute("aria-disabled") === "true", "header protection lost"); await close();
+  }),
+  check("Selections spanning header and body rows keep the header protection", async () => {
+    editor.view.dispatch(editor.state.tr.setSelection(CellSelection.create(editor.state.doc, cellPos(3) - 1, cellPos(4) - 1)));
+    await open(4); assert(menuItem("Delete current row")?.getAttribute("aria-disabled") !== "true", "body rows were disabled");
+    editor.view.dispatch(editor.state.tr.setSelection(CellSelection.create(editor.state.doc, cellPos(0) - 1, cellPos(4) - 1)));
+    await until(() => menuItem("Delete current row")?.getAttribute("aria-disabled") === "true", "header protection after selection change");
+    await close();
   }),
   check("Header toggle and table deletion are reversible", async () => {
     setCursor(3); await open(3); await choose("Toggle header row");
@@ -169,6 +196,40 @@ const checks = [
   check("Image paste uses the existing upload handler", async () => {
     stubClipboard({ read: async () => [new ClipboardItem({ 'image/png': new Blob(['fixture'], { type: 'image/png' }) })] });
     setCursor(3); await open(3); await choose("Paste"); await until(() => uploaded.length, "file upload"); assert(uploaded[0].type === 'image/png', "wrong upload type");
+  }),
+  check("Native desktop clipboard snapshot waits for menu teardown before insertion", async () => {
+    let called = false;
+    stubClipboard({ read: async () => { throw new Error("Browser clipboard must not be used on desktop"); } });
+    stubNativeRead(async () => {
+      called = true; return { html: '<p><em>Native paste</em></p>', text: 'Native paste', images: [] };
+    });
+    selectText(3); await open(3); await choose("Paste");
+    await until(() => cells()[3].textContent === "Native paste", "native paste transaction");
+    assert(called && cells()[3].innerHTML.includes('<em>Native paste</em>'), "native bridge or formatting was skipped"); editor.commands.undo(); assert(cells()[3].textContent === "Alpha", "native paste undo failed");
+  }),
+  ...['document', 'selection', 'readOnly', 'unmount', 'userPaste'].map((change) => check(`Native clipboard snapshot arriving after ${change} changes is discarded`, async () => {
+    let resolve!: (data: { html: string; text: string; images: Uint8Array[] }) => void;
+    stubNativeRead(() => new Promise((done) => { resolve = done; }));
+    setCursor(3); await open(3); await choose("Paste");
+    if (change === 'document') editor.commands.setContent('<p>Another note</p>');
+    if (change === 'selection') setCursor(4);
+    if (change === 'readOnly') editor.setEditable(false);
+    if (change === 'unmount') { root!.unmount(); root = undefined; }
+    if (change === 'userPaste') nativePasteEvent();
+    const before = JSON.stringify(editor.getJSON());
+    resolve({ html: '', text: 'Unexpected clipboard snapshot', images: [] }); await pause(80);
+    assert(JSON.stringify(editor.getJSON()) === before && !editor.getText().includes('Unexpected'), "native clipboard snapshot escaped target guard");
+  })),
+  check("Native clipboard rejection shows a shortcut hint", async () => {
+    stubNativeRead(async () => { throw new Error('Native read denied'); });
+    setCursor(3); const before = JSON.stringify(editor.getJSON()); await open(3); await choose('Paste');
+    await until(() => document.querySelector('[role="alert"]')?.textContent?.includes('V'), 'native rejection notice');
+    assert(JSON.stringify(editor.getJSON()) === before, 'rejected native paste changed content');
+  }),
+  check("All native PNG clipboard items use the existing upload pipeline", async () => {
+    stubNativeRead(async () => ({ html: '', text: '', images: [Uint8Array.from([137,80,78,71]), Uint8Array.from([137,80,78,71])] }));
+    setCursor(3); await open(3); await choose('Paste');
+    await until(() => uploaded.length === 2, 'native clipboard upload'); assert(uploaded.every((file) => file.type === 'image/png'), 'native image format lost');
   }),
   check("Denied clipboard read gives a visible shortcut hint and leaves document intact", async () => {
     stubClipboard({ read: async () => { throw new DOMException('Denied', 'NotAllowedError'); } }); const before = JSON.stringify(editor.getJSON());
@@ -240,6 +301,26 @@ const checks = [
     await until(menu, 'keyboard menu'); assert(editor.state.selection.eq(selection) && menuItem('Copy')?.getAttribute('aria-disabled') !== 'true', 'keyboard selection lost');
     await pause(); await close(); await until(() => document.activeElement === editor.view.dom, 'focus restored after menu animation');
   }),
+  check("Keyboard context outside the editor cannot act on a stale table selection", async () => {
+    setCursor(3);
+    const button = fixture.querySelector<HTMLElement>('#node-view')!;
+    const event = new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true, cancelable: true });
+    button.dispatchEvent(event); await pause();
+    assert(!event.defaultPrevented && !menu(), 'wrapper button opened the table menu');
+  }),
+  check("Table commands and paste restore focus after the modal focus scope exits", async () => {
+    let trappedFocus = false;
+    const focus = editor.view.dom.focus.bind(editor.view.dom);
+    editor.view.dom.focus = (options) => {
+      if (document.querySelector('[role="menu"]')) { trappedFocus = true; return; }
+      focus(options);
+    };
+    setCursor(3); await open(4); await choose('Add row below');
+    await until(() => editor.view.hasFocus(), 'focus restored after table action');
+    editor.commands.undo(); selectText(3); await open(3); await choose('Paste');
+    await until(() => cells()[3].textContent === 'Pasted' && editor.view.hasFocus(), 'focus restored after paste');
+    assert(!trappedFocus, 'editor was focused while the modal menu still existed');
+  }),
   check("Menu is kept within the viewport near its lower right edge", async () => {
     setCursor(3); await open(3, 0, true); const rect = menu()!.getBoundingClientRect();
     assert(rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth + 1 && rect.bottom <= innerHeight + 1, `menu outside viewport: ${JSON.stringify(rect)}`); await close();
@@ -249,7 +330,24 @@ const checks = [
   }),
 ];
 
+// AX text offsets differ between browsers for tables. These manual controls set
+// an exact PM selection, while Copy/Paste still use the real browser clipboard.
+const manualControls = document.createElement('div'); manualControls.hidden = true;
+for (const [label, table, index] of [['Select Alpha and open menu', 0, 3], ['Select Other and open menu', 1, 0]] as const) {
+  const button = document.createElement('button'); button.textContent = label;
+  button.style.cssText = 'border:1px solid;padding:8px';
+  button.addEventListener('click', () => {
+    const cell = cells(table)[index]; cell.scrollIntoView({ block: 'center' });
+    const pos = cellPos(index, table) + 1;
+    editor.commands.setTextSelection({ from: pos, to: pos + cell.textContent!.length }); editor.view.focus();
+    editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true, cancelable: true }));
+  });
+  manualControls.appendChild(button);
+}
+document.getElementById('summary')!.parentNode!.insertBefore(manualControls, document.getElementById('summary'));
+
 document.getElementById('run')!.addEventListener('click', async () => {
+  manualControls.hidden = true;
   const button = document.getElementById('run') as HTMLButtonElement; button.disabled = true;
   const results = document.getElementById('results')!; results.replaceChildren(); let passed = 0;
   for (const test of checks) {
@@ -259,12 +357,13 @@ document.getElementById('run')!.addEventListener('click', async () => {
     catch (error) { result.textContent = `FAIL: ${test.name}: ${error instanceof Error ? error.message : String(error)}`; result.style.color = 'red'; }
     results.appendChild(result);
   }
-  root?.unmount(); root = undefined; if (editor && !editor.isDestroyed) editor.destroy(); restoreClipboard();
+  root?.unmount(); root = undefined; if (editor && !editor.isDestroyed) editor.destroy(); restoreClipboard(); restoreDesktop();
   document.getElementById('summary')!.textContent = `${passed}/${checks.length} passed`; button.disabled = false;
 });
 
 document.getElementById('demo')!.addEventListener('click', async () => {
   await mount(); restoreClipboard();
+  document.getElementById('results')!.replaceChildren(); manualControls.hidden = false;
   const browserClipboard = navigator.clipboard;
   stubClipboard({
     read: () => browserClipboard.read(), readText: () => browserClipboard.readText(),

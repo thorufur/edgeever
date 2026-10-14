@@ -6,9 +6,13 @@ import { CellSelection } from "@tiptap/pm/tables";
 export const selectTableContextTarget = (view: EditorView, cell: HTMLElement, coordinates?: { left: number; top: number }) => {
   if (!view.dom.contains(cell) || !view.editable) return false;
   const cellContentPos = view.posAtDOM(cell, 0);
+  if (cellContentPos < 1 || cellContentPos > view.state.doc.content.size) return false;
+  const cellNode = view.state.doc.nodeAt(cellContentPos - 1);
+  if (!cellNode || !["cell", "header_cell"].includes(cellNode.type.spec.tableRole)) return false;
+  const cellEnd = cellContentPos + cellNode.content.size;
   const { selection } = view.state;
   const hit = coordinates ? view.posAtCoords(coordinates)?.pos : selection.from;
-  const pos = hit != null && hit >= cellContentPos && hit <= cellContentPos + (view.state.doc.nodeAt(cellContentPos - 1)?.content.size ?? 0)
+  const pos = hit != null && hit >= cellContentPos && hit <= cellEnd
     ? hit : cellContentPos;
   let insideSelection = !selection.empty && pos >= selection.from && pos <= selection.to;
   if (selection instanceof CellSelection) {
@@ -17,7 +21,13 @@ export const selectTableContextTarget = (view: EditorView, cell: HTMLElement, co
       if (cellPos + 1 === cellContentPos) insideSelection = true;
     });
   }
-  if (!insideSelection) view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(pos))));
+  if (!insideSelection) {
+    // Searching forward from the content-end boundary would select the next
+    // cell. Search back into this cell and reject unusable node-view targets.
+    const next = TextSelection.near(view.state.doc.resolve(pos), pos === cellEnd ? -1 : 1);
+    if (next.from < cellContentPos || next.to > cellEnd) return false;
+    view.dispatch(view.state.tr.setSelection(next));
+  }
   return true;
 };
 

@@ -23,11 +23,12 @@ export const EditorTableMenu = ({ editor, readOnly }: EditorTableMenuProps) => {
   const ready = Boolean(editor && !editor.isDestroyed);
   const tableActiveState = useEditorState({
     editor,
-    selector: ({ editor: activeEditor }) =>
-      (activeEditor?.isActive("table") ? 1 : 0)
-      | (activeEditor?.isActive("tableHeader") ? 2 : 0),
+    selector: ({ editor: activeEditor }) => ({
+      inTable: activeEditor?.isActive("table") ?? false,
+      disabled: getEditorTableActions(activeEditor, readOnly).map((action) => action.disabled),
+    }),
   });
-  const inTable = Boolean((tableActiveState ?? 0) & 1);
+  const inTable = Boolean(tableActiveState?.inTable);
   const disabled = readOnly || !ready;
 
   const run = (command: (activeEditor: Editor) => void) => {
@@ -69,7 +70,7 @@ export const EditorTableMenu = ({ editor, readOnly }: EditorTableMenuProps) => {
         {getEditorTableActions(editor, readOnly).map((action) => (
           <Fragment key={action.key}>
             {action.destructive ? <DropdownMenuSeparator /> : null}
-            <DropdownMenuItem disabled={action.disabled} className={action.destructive ? "text-rose-700 focus:text-rose-800" : undefined} onSelect={action.run}>
+            <DropdownMenuItem disabled={action.disabled} className={action.destructive ? "text-rose-700 focus:text-rose-800" : undefined} onSelect={() => action.run()}>
               {t(action.key)}
             </DropdownMenuItem>
           </Fragment>
