@@ -2803,6 +2803,7 @@ export const pl = {
     switchToNotebook: "Przełącz na {{name}}",
   },
   workspaceDialogs: {
+    openMemoFailed: "Nie można otworzyć tej notatki. Może być niedostępna lub znajdować się w koszu. Sprawdź połączenie i spróbuj ponownie.",
     emptyTrashTitle: "Opróżnij kosz",
     emptyTrashDescription: "Wszystkie notatki w koszu i wciąż powiązane z nimi załączniki zostaną usunięte. Tej operacji nie można cofnąć.",
     emptyTrashConfirm: "Opróżnij kosz",

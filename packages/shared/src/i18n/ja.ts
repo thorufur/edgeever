@@ -2803,6 +2803,7 @@ export const ja = {
     switchToNotebook: "{{name}} に切り替え",
   },
   workspaceDialogs: {
+    openMemoFailed: "このノートを開けませんでした。利用できないか、ゴミ箱にある可能性があります。接続を確認して再試行してください。",
     emptyTrashTitle: "ゴミ箱を空にする",
     emptyTrashDescription: "ゴミ箱のすべてのノートと、まだ紐づいている添付が削除されます。この操作は取り消せません。",
     emptyTrashConfirm: "ゴミ箱を空にする",

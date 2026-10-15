@@ -2812,6 +2812,7 @@ export const zhCN = {
     switchToNotebook: "切换到 {{name}}",
   },
   workspaceDialogs: {
+    openMemoFailed: "无法打开这条笔记。它可能已不可用或在回收站中。请检查连接后重试。",
     emptyTrashTitle: "清空回收站",
     emptyTrashDescription: "回收站中的全部笔记和仍关联的附件都会删除，这个操作不可恢复。",
     emptyTrashConfirm: "清空回收站",

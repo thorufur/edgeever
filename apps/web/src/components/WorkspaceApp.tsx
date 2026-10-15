@@ -123,6 +123,7 @@ import { useWorkspaceRoute } from "@/hooks/useWorkspaceRoute";
 import { useNoteProse } from "@/hooks/useNoteProse";
 import { useWorkspacePreferences } from "@/hooks/useWorkspacePreferences";
 import { useWorkspaceSelection } from "@/hooks/useWorkspaceSelection";
+import { useMemoLinkNavigation } from "@/hooks/useMemoLinkNavigation";
 import { useNotebookSelectionReconciliation } from "@/hooks/useNotebookSelectionReconciliation";
 import { useWorkspaceQueuedSync } from "@/hooks/useWorkspaceQueuedSync";
 import { useWorkspaceMemoRemoval } from "@/hooks/useWorkspaceMemoRemoval";
@@ -240,7 +241,7 @@ export const WorkspaceApp = ({
   const autoSelectedDemoNotebookRef = useRef(false);
   const [createdMemoEditId, setCreatedMemoEditId] = useState<string | null>(null);
   const pendingCreatedMemoIdRef = useRef<string | null>(null);
-  const pendingQuickSwitcherMemoIdRef = useRef<string | null>(desktopWorkspaceRestore?.selectedMemoId ?? null); // also companion/plugin opens not yet in the list
+  const pendingQuickSwitcherMemoIdRef = useRef<string | null>(desktopWorkspaceRestore?.selectedMemoId ?? null); // also link/companion/plugin opens not yet in the list
   useEffect(() => {
     if (!window.edgeeverDesktop?.isAvailable) return;
     writeDesktopWorkspaceRestoreState({
@@ -2471,6 +2472,22 @@ export const WorkspaceApp = ({
     }
   }, [clearMemoSelection, clearPendingCreatedMemo, navigateWorkspaceHome, setSelectedMemoId, setSelectedNotebookId]);
 
+  const handleOpenLinkedMemo = useMemoLinkNavigation({
+    repository,
+    navigationScope: JSON.stringify([
+      route.pathname, route.search, memoView, selectedNotebookId, selectedMemoId,
+      selectedTag, search, memoFilterMode, activePane, rightView,
+    ]),
+    onOpen: (memo) => {
+      cacheMemoDetail(queryClient, memo, "notebook");
+      handleOpenPluginNote(memo.id, memo.notebookId);
+    },
+    onError: () => setAppNoticeDialog({
+      title: t("memoList.openMemo"),
+      description: t("workspaceDialogs.openMemoFailed"),
+    }),
+  });
+
   useEffect(() => pluginHost.setNavigationAdapter({ openNote: handleOpenPluginNote }), [handleOpenPluginNote, pluginHost]);
 
   useEffect(() => {
@@ -2621,10 +2638,7 @@ export const WorkspaceApp = ({
       if (command.startsWith("open-memo:")) {
         const memoId = command.slice("open-memo:".length);
         if (memoId) {
-          navigateWorkspaceHome();
-          setMemoView("notebook");
-          setSelectedMemoId(memoId);
-          setActivePane("editor");
+          void handleOpenLinkedMemo(memoId);
         }
       }
     });
@@ -2649,7 +2663,7 @@ export const WorkspaceApp = ({
       removeMarkdownListener();
       removeScreenshotListener();
     };
-  }, [createMemoMutation, defaultMemoNotebookId, handleCreateMemo, handleCreateNotebook, handleGlobalSearch, notebooks, selectedNotebookId, toggleDesktopFocusMode]);
+  }, [createMemoMutation, defaultMemoNotebookId, handleCreateMemo, handleCreateNotebook, handleGlobalSearch, handleOpenLinkedMemo, notebooks, selectedNotebookId, toggleDesktopFocusMode]);
 
   const handleWorkspaceBackRequest = useCallback(() => {
     if (appNoticeDialog) {
@@ -3713,12 +3727,7 @@ export const WorkspaceApp = ({
                     onDocumentActionConsumed={(requestId) => {
                       setMemoDocumentActionRequest((current) => current?.id === requestId ? null : current);
                     }}
-                    onOpenMemo={(memoId) => {
-                      clearPendingCreatedMemo();
-                      setMemoView("notebook");
-                      setSelectedMemoId(memoId);
-                      setActivePane("editor");
-                    }}
+                    onOpenMemo={handleOpenLinkedMemo}
                     imageCompressionEnabled={imageCompressionEnabled}
                     selectionActionBar={memoSelectionActionBar}
                     onBackToList={() => {

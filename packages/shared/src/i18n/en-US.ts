@@ -2814,6 +2814,7 @@ export const enUS = {
     switchToNotebook: "Switch to {{name}}",
   },
   workspaceDialogs: {
+    openMemoFailed: "This note could not be opened. It may be unavailable or in Trash. Check your connection and try again.",
     emptyTrashTitle: "Empty trash",
     emptyTrashDescription: "All notes in Trash and still-linked attachments will be deleted. This action cannot be undone.",
     emptyTrashConfirm: "Empty trash",
