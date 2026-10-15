@@ -1474,10 +1474,10 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       body: JSON.stringify(payload),
     }),
 
-    useTemplate: (templateId: string, notebookId: string) =>
+    useTemplate: (templateId: string, notebookId: string, locale?: string) =>
       request<MemoResponse>(`/api/v1/templates/${templateId}/use`, {
         method: "POST",
-        body: JSON.stringify({ notebookId }),
+        body: JSON.stringify(locale ? { notebookId, locale } : { notebookId }),
       }),
 
     deleteTemplate: (templateId: string) =>
@@ -1889,6 +1889,12 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       request<MemoResponse>(`/api/v1/memos/${memoId}/restore`, {
         method: "POST",
         body: JSON.stringify({}),
+      }),
+
+    duplicateMemo: (memoId: string, payload: { notebookId?: string; title?: string } = {}) =>
+      request<MemoResponse>(`/api/v1/memos/${encodeURIComponent(memoId)}/duplicate`, {
+        method: "POST",
+        body: JSON.stringify(payload),
       }),
 
     mergeMemos: (payload: { memoIds: string[]; notebookId?: string; title?: string }) =>

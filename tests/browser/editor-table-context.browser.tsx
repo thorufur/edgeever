@@ -5,7 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { Editor, EditorContent } from "@tiptap/react";
 import { Node } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
-import { TableKit } from "@tiptap/extension-table";
+import { EdgeEverTableKit as TableKit } from "../../packages/shared/src/markdown-table";
 import { CellSelection } from "@tiptap/pm/tables";
 import { I18nextProvider } from "react-i18next";
 import i18next from "i18next";

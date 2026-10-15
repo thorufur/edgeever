@@ -75,6 +75,9 @@ export const TemplateUpdateSchema = z.object({
 
 export const TemplateUseSchema = z.object({
   notebookId: z.string().trim().min(1),
+  // The client's UI language. Default templates nobody edited are used in
+  // this language; without it every template is used as stored.
+  locale: z.string().trim().min(1).max(64).optional(),
 });
 
 const ScheduledPluginCommandPayloadSchema = z.object({
@@ -161,6 +164,11 @@ export const MoveMemosSchema = z.object({
 export const DeleteMemosSchema = z.object({
   memoIds: z.array(z.string().trim().min(1)).min(1).max(100),
   permanent: z.boolean().optional(),
+});
+
+export const DuplicateMemoSchema = z.object({
+  notebookId: z.string().trim().min(1).optional(),
+  title: z.string().trim().max(160).optional(),
 });
 
 export const MergeMemosSchema = z.object({
