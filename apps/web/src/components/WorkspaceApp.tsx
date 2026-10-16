@@ -124,6 +124,7 @@ import { useNoteProse } from "@/hooks/useNoteProse";
 import { useWorkspacePreferences } from "@/hooks/useWorkspacePreferences";
 import { useWorkspaceSelection } from "@/hooks/useWorkspaceSelection";
 import { useMemoLinkNavigation } from "@/hooks/useMemoLinkNavigation";
+import { useMemoSelectionReconciliation } from "@/hooks/useMemoSelectionReconciliation";
 import { useNotebookSelectionReconciliation } from "@/hooks/useNotebookSelectionReconciliation";
 import { useWorkspaceQueuedSync } from "@/hooks/useWorkspaceQueuedSync";
 import { useWorkspaceMemoRemoval } from "@/hooks/useWorkspaceMemoRemoval";
@@ -1062,10 +1063,7 @@ export const WorkspaceApp = ({
   });
 
   const showDescendantNotes = useShowDescendantNotesPreference();
-  useEffect(() => {
-    // A changed scope must not retain hidden notes in bulk actions.
-    clearMemoSelection();
-  }, [showDescendantNotes, clearMemoSelection]);
+  const previousShowDescendantNotesRef = useRef(showDescendantNotes);
   const selectedNotebookScopeIds = useMemo(
     () => (selectedNotebookId && !selectedTag ? getNotebookScopeIds(notebooks, selectedNotebookId, showDescendantNotes) : []),
     [notebooks, selectedNotebookId, selectedTag, showDescendantNotes]
@@ -1127,40 +1125,25 @@ export const WorkspaceApp = ({
     selectedMemoIndex >= 0 && selectedMemoIndex < memos.length - 1 ? memos[selectedMemoIndex + 1]?.id : null;
   const detailMemoId = rendererRecoveryMode ? null : selectedMemoId ?? memos[0]?.id ?? null;
 
+  const clearPendingMemoSelection = useMemoSelectionReconciliation({
+    memos,
+    selectedMemoId,
+    setSelectedMemoId,
+    rendererRecoveryMode,
+    creatingMemoSelectionRef,
+    pendingCreatedMemoIdRef,
+    pendingOpenedMemoIdRef: pendingQuickSwitcherMemoIdRef,
+    createdMemoEditId,
+  });
+
   useEffect(() => {
-    const selectedMemoInList = selectedMemoId ? memos.some((memo) => memo.id === selectedMemoId) : false;
-
-    if (rendererRecoveryMode) {
-      return;
+    // A changed scope must not retain hidden notes in single or bulk selection.
+    clearMemoSelection();
+    if (previousShowDescendantNotesRef.current !== showDescendantNotes) {
+      previousShowDescendantNotesRef.current = showDescendantNotes;
+      clearPendingMemoSelection();
     }
-
-    if (creatingMemoSelectionRef.current || pendingCreatedMemoIdRef.current) {
-      return;
-    }
-
-    if (pendingQuickSwitcherMemoIdRef.current) {
-      if (!memos.some((memo) => memo.id === pendingQuickSwitcherMemoIdRef.current)) {
-        return;
-      }
-      pendingQuickSwitcherMemoIdRef.current = null;
-    }
-
-    if (createdMemoEditId && selectedMemoId === createdMemoEditId) {
-      // Keep the create request alive until the editor consumes it. The new
-      // memo can appear in the list before its detail query has mounted the
-      // editor, and clearing it here would lose the autofocus request.
-      return;
-    }
-
-    if (memos.length === 0) {
-      setSelectedMemoId(null);
-      return;
-    }
-
-    if (!selectedMemoId || !selectedMemoInList) {
-      setSelectedMemoId(memos[0].id);
-    }
-  }, [createdMemoEditId, memos, rendererRecoveryMode, selectedMemoId]);
+  }, [showDescendantNotes, clearMemoSelection, clearPendingMemoSelection]);
 
   useEffect(() => {
     if (!rendererRecoveryMode || !selectedMemoId) return;
@@ -1214,6 +1197,7 @@ export const WorkspaceApp = ({
   const createNotebookMutation = useMutation({
     mutationFn: repository.createNotebook,
     onSuccess: async (data) => {
+      clearPendingMemoSelection();
       setSelectedTag(null);
       setSelectedNotebookId(data.notebook.id);
       setActivePane("memos");
@@ -2358,10 +2342,12 @@ export const WorkspaceApp = ({
   };
 
   const handleSelectNotebook = (notebookId: string) => {
+    clearPendingMemoSelection();
     navigateWorkspaceHome();
     setMemoView("notebook");
     setSelectedTag(null);
     setSelectedNotebookId(notebookId);
+    setRightView("editor");
     setMobileBottomNavActive("home");
     clearMemoSelection();
     clearPendingCreatedMemo();
@@ -2371,6 +2357,7 @@ export const WorkspaceApp = ({
   };
 
   const handleSelectAllMemos = () => {
+    clearPendingMemoSelection();
     navigateWorkspaceHome();
     setMemoView("notebook");
     setSelectedTag(null);
@@ -2385,6 +2372,7 @@ export const WorkspaceApp = ({
   };
 
   const handleMobileHome = () => {
+    clearPendingMemoSelection();
     navigateWorkspaceHome();
     if (memoView === "trash") {
       setMemoView("notebook");
@@ -2400,6 +2388,7 @@ export const WorkspaceApp = ({
   };
 
   const handleSelectTag = (tag: string) => {
+    clearPendingMemoSelection();
     navigateWorkspaceHome();
     setMemoView("notebook");
     setSelectedTag(tag);
@@ -2420,6 +2409,7 @@ export const WorkspaceApp = ({
   }, []);
 
   const handleGlobalSearch = useCallback(() => {
+    clearPendingMemoSelection();
     navigateWorkspaceHome();
     setMemoView("notebook");
     setSelectedTag(null);
@@ -2428,7 +2418,7 @@ export const WorkspaceApp = ({
     setRightView("editor");
     clearMemoSelection();
     handleMobileSearch();
-  }, [clearMemoSelection, handleMobileSearch, navigateWorkspaceHome, setSelectedNotebookId]);
+  }, [clearMemoSelection, clearPendingMemoSelection, handleMobileSearch, navigateWorkspaceHome, setSelectedNotebookId]);
 
   const handleOpenQuickSwitcherMemo = useCallback((memo: MemoSummary) => {
     pendingQuickSwitcherMemoIdRef.current = memo.id;
@@ -2497,10 +2487,26 @@ export const WorkspaceApp = ({
   }, [pluginNavigationRequest, selectedMemoId]);
 
   const handleCancelMobileSearch = () => {
+    clearPendingMemoSelection();
     setSearch("");
     setMobileBottomNavActive("home");
     clearMemoSelection();
     setActivePane("memos");
+  };
+
+  const handleSearchChange = (query: string) => {
+    if (query !== search) clearPendingMemoSelection();
+    setSearch(query);
+  };
+
+  const handleFilterModeChange = (mode: MemoFilterMode) => {
+    if (mode !== memoFilterMode) clearPendingMemoSelection();
+    setMemoFilterMode(mode);
+  };
+
+  const handleSortModeChange = (mode: MemoSortMode) => {
+    if (mode !== memoSortMode) clearPendingMemoSelection();
+    setMemoSortMode(mode);
   };
 
   const clearHiddenMobileSearch = () => {
@@ -3228,15 +3234,7 @@ export const WorkspaceApp = ({
                   view={memoView}
                   canCreateMemo={canCreateMemo}
                   isCreatingMemo={createMemoMutation.isPending}
-                  onSelect={(notebookId) => {
-                    navigateWorkspaceHome();
-                    setMemoView("notebook");
-                    setSelectedTag(null);
-                    setSelectedNotebookId(notebookId);
-                    clearMemoSelection();
-                    setRightView("editor");
-                    setActivePane("memos");
-                  }}
+                  onSelect={handleSelectNotebook}
                   onCreateMemo={handleCreateMemo}
                   onCreateNotebook={handleCreateNotebook}
                   onRenameNotebook={handleRenameNotebook}
@@ -3260,6 +3258,7 @@ export const WorkspaceApp = ({
                   onOpenPluginManager={handleOpenPluginManager}
                   onOpenSettings={handleOpenSettings}
                   onOpenTrash={() => {
+                    clearPendingMemoSelection();
                     navigateWorkspaceTrash();
                     setMemoView("trash");
                     setSelectedTag(null);
@@ -3323,8 +3322,8 @@ export const WorkspaceApp = ({
               sortMode={memoSortMode}
               mobileSearchActive={mobileSearchActive}
               searchFocusToken={mobileSearchFocusToken}
-              onFilterModeChange={setMemoFilterMode}
-              onSortModeChange={setMemoSortMode}
+              onFilterModeChange={handleFilterModeChange}
+              onSortModeChange={handleSortModeChange}
               onLoadMoreMemos={handleLoadMoreMemos}
               canCreateMemo={canCreateMemo}
               isLoading={memosQuery.isLoading}
@@ -3339,7 +3338,7 @@ export const WorkspaceApp = ({
               multiSelectKeyDown={multiSelectKeyDown}
               onRetry={() => void memosQuery.refetch()}
               onOpenNotebookPicker={() => setMobileNotebookPickerOpen(true)}
-              onSearch={setSearch}
+              onSearch={handleSearchChange}
               onCancelMobileSearch={handleCancelMobileSearch}
               onCreateMemo={handleCreateMemo}
               onImportMarkdownFiles={(files) => void handleImportMarkdownFiles(files)}
@@ -3353,6 +3352,7 @@ export const WorkspaceApp = ({
               isSyncingMemos={isManualMemoSyncing || isSyncingQueuedChanges || isPullRefreshing || memosQuery.isRefetching}
               canSyncMemos={isOnline}
               onOpenTrash={() => {
+                clearPendingMemoSelection();
                 navigateWorkspaceTrash();
                 setMemoView("trash");
                 setSelectedTag(null);
@@ -3367,6 +3367,7 @@ export const WorkspaceApp = ({
               onBackFromTrash={handleSelectAllMemos}
               onClearTag={handleSelectAllMemos}
               onOpenMemo={(memoId) => {
+                clearPendingMemoSelection();
                 if (shouldNavigateHomeWhenOpeningMemo(memoView)) {
                   navigateWorkspaceHome();
                 }
@@ -3397,6 +3398,7 @@ export const WorkspaceApp = ({
               onRestoreMemo={handleRestoreMemoFromList}
               onMoveMemo={handleMoveMemoFromList}
               onRequestDocumentAction={(memoId: string, action: MemoDocumentAction, printWindow?: Window | null) => {
+                clearPendingMemoSelection();
                 if (shouldNavigateHomeWhenOpeningMemo(memoView)) {
                   navigateWorkspaceHome();
                 }
